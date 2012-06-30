@@ -1,0 +1,8 @@
+[Bb]in
+[Oo]bj
+*.user
+*.suo
+packages/
+_ReSharper*
+TestResults/*
+*.swp

@@ -1,0 +1,15 @@
+﻿---
+This is my wishlist for an F# ReSharper type thing.
+Don't really need that much as F# removes the need for many things!
+---
+Rename value refactoring.
+- Include changing names in failwith strings etc.
+Goto type/definition (search box one)
+Find usages.
+Optimise "open"s
+
+Comment block (VS support this?)
+Show method sig help (VS support this?)
+Show documentation (VS support this?)
+Highlight matched parens (can VS do this?)
+

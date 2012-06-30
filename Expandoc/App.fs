@@ -162,24 +162,42 @@ let buildPages (args:ExpandocArgs) =
         |> List.ofSeq
 
     //Do TOC processing for each scope.
-    seq {
+    let tocEntries = 
+        [
             for scope in args.Scopes do
-                let scopeRoot = Path.Combine(args.DocsInPath, scope)
+                //NOTE - This means scopes should not be numberwangy.
+                let scopeRoot = Path.Combine(args.DocsOutPath, scope).ToLower()
                 for (inPath, outPath, frontMatter, includeInToc) in inOutTocs do
-                    if includeInToc && inPath.StartsWith(scopeRoot) then
+                    if includeInToc && outPath.StartsWith(scopeRoot) then
                         //Folder bread crumb
-                        let relativePath = inPath.Substring(scopeRoot.Length)
+                        let relativePath = outPath.Substring(scopeRoot.Length)
                         let breadCrumb = relativePath.Split([|Path.DirectorySeparatorChar; Path.AltDirectorySeparatorChar|], StringSplitOptions.RemoveEmptyEntries)
-                        //Get the heading...
-                        let heading = 
-                            let headingFromH1s = headOrDefault "No Title"
-                            (loadHtmlFile outPath).DocumentNode
-                            |> getElementTexts "h1" 
-                            |> headingFromH1s 
-                        printfn "Including %s in Toc with heading %s." inPath heading
-                        yield (true)
-        }        
-        |> Seq.iter (fun toc -> ())
+                        if breadCrumb.Length = 2 then
+                            //Get the heading...
+                            let heading = 
+                                let headingFromH1s = headOrDefault "No Title"
+                                (loadHtmlFile outPath).DocumentNode
+                                |> getElementTexts "h1" 
+                                |> headingFromH1s 
+                            printfn "Including %s in Toc with heading %s." inPath heading
+                            yield (scope.ToLower() :: (breadCrumb |> List.ofArray), heading)
+                        else
+                            printfn "Skipping TOC for %s." inPath
+        ]
+    
+    //Create the TOC html fragment.
+    let tocHtml = 
+        let sb = StringBuilder()
+        sb.Append("<ul class='nav nav-list'>") |> ignore
+        for (breadCrumb, title) in tocEntries do
+            let tocEntry = tocEntries.Head//We assume head is the seciton header.
+            let liFormat = "<li><a href='{0}'>{1}</a></li>"
+            let url = "/" + String.Join("/", breadCrumb)
+            sb.AppendFormat(liFormat, url, title) |> ignore
+            sb.Append("<ul>") |> ignore
+            sb.Append("</ul>") |> ignore
+        sb.Append("</ul>") |> ignore
+        sb.ToString()
     ()
 
 ///Run this app yo!

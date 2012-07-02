@@ -8,6 +8,12 @@ type ExpandocArg =
     | KeyValue of string * string * string
     with override x.ToString() = match x with | Value(s,v) -> sprintf "--%s=\"%s\"" s v | KeyValue(s,k,v) -> sprintf "--%s=%s:\"%s\"" s k v
 
+let getNamedValueArg name arg =
+    match arg with
+    | Value(name,value) -> Some(value) 
+    | _ -> None
+    
+
 type ArgType = 
  | ClearArg of bool ref
  | FloatArg of (float -> unit)

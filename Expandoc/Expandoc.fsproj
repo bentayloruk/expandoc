@@ -49,6 +49,7 @@
     <Compile Include="IO.fs" />
     <Compile Include="Mime.fs" />
     <Compile Include="HttpServer.fs" />
+    <Compile Include="Nustache.fs" />
     <Compile Include="Html.fs" />
     <Compile Include="Pandoc.fs" />
     <Compile Include="List.fs" />
@@ -98,6 +99,10 @@
     </Reference>
     <Reference Include="NHamcrest">
       <HintPath>..\packages\FsUnit.xUnit.1.1.0.0\Lib\Net40\NHamcrest.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Nustache.Core">
+      <HintPath>..\packages\Nustache.1.12.4.29\lib\net20\Nustache.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Owin">

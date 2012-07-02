@@ -11,6 +11,7 @@ open Directory
 open YamlDotNet.RepresentationModel
 open Arg
 open Html
+open Nustache
 
 type ExpandocArgs =
     { DocsInPath : string;
@@ -62,8 +63,11 @@ let argsFromYaml (yaml:string) (templatesPath:string) =
             for node in ymn.Children do
                 match (node.Key.ToString(), node.Value.ToString()) with
                 | ("layout", template) -> 
-                    let fullPath = Path.Combine([|templatesPath;template + ".html";|])
-                    yield Value("template", fullPath)
+                    let fullPath = Path.Combine([|templatesPath;template;|])
+                    if File.Exists(fullPath) then
+                        yield Value("layout", fullPath)
+                    else 
+                        printfn "Missing template %s." fullPath
                 | ("title", title) -> 
                     yield! [KeyValue("variable", "pagetitle", title); KeyValue("variable", "title", title)]
                 | _ -> ()
@@ -81,6 +85,10 @@ let numberWang (path:string) =
     let wangedParts = parts |> Seq.map nameWithoutNumberWang |> Array.ofSeq
     Path.Combine(wangedParts)
 
+let hasFrontMatterableExtension path =
+    let fmExts = [| "md"; "markdown"; "textile"; "rst"; "htm"; "html"; "txt"; "css"; "js"|] 
+    fmExts |> Seq.exists (fun pe -> "." + pe = Path.GetExtension(path)) 
+    
 let hasPandocableExtension path = 
     let pandocExtensions = [| "md"; "markdown"; "textile"; "rst";|] 
     pandocExtensions |> Seq.exists (fun pe -> "." + pe = Path.GetExtension(path)) 
@@ -117,6 +125,7 @@ let getOutPath (inRootPath:string) (outRootPath:string) (path:string) =
         Path.Combine(outRootPath.ToLower(), docRootRelativePath)
     (fullPath.ToLower(), docRootRelativePath.ToLower())
 
+        
 ///A scope is a bunch of pages that have a TOC.
 let buildPages (args:ExpandocArgs) = 
 
@@ -128,16 +137,34 @@ let buildPages (args:ExpandocArgs) =
         |> Seq.map (fun path -> 
             //Numberwang the output path.
             let (outPath, relativeOutPath) = getOutPath args.DocsInPath args.DocsOutPath path
-            if hasPandocableExtension path then
+            if hasFrontMatterableExtension path then
                 //Read and convert (if required) the input.
                 use stream = File.Open(path, FileMode.Open, FileAccess.Read)
                 use reader = new StreamReader(stream)
                 //Get args from front matter.
                 let yamlFrontMatter = readFrontMatter reader
-                let pandocArgs = argsFromYaml yamlFrontMatter args.TemplatesPath
+                let yamlArgs = argsFromYaml yamlFrontMatter args.TemplatesPath
                 let includeInToc = yamlFrontMatter.Contains("tocex") <> true//Hack for now... 
                 //Convert if required.
-                let (errCode, errMsg, output) = Pandoc.toHtml args.PandocPath pandocArgs reader
+                let (errCode, errMsg, output) = 
+                    //Pandoc.toHtml args.PandocPath yamlArgs reader
+                    if hasPandocableExtension path then
+                        Pandoc.toHtml args.PandocPath [] reader
+                    else (0,"", reader.ReadToEnd())
+                //Get the layout/template path
+                let templateName = 
+                    let getLayout = function | Value("layout", v) -> Some(v) | _ -> None 
+                    yamlArgs |> Seq.tryPick getLayout
+                //Get all the vars in a map for the template
+                let vars = 
+                    let valueChooser = function | Value(n,v) -> Some((n,v)) | _ -> None
+                    yamlArgs |> Seq.choose valueChooser
+                let output = 
+                    if templateName.IsSome then 
+                        let fullLayoutPath = Path.Combine(args.TemplatesPath, templateName.Value)
+                        let vars = seq { yield ("content", output); yield! vars }
+                        nustache fullLayoutPath vars 
+                    else output
                 //Write the output
                 if errCode = 0 then writeTextFile output outPath
                 else printfn "Error %s for %s." errMsg path

@@ -30,6 +30,9 @@ let defaultExpandocArgs =
     Scopes = [||];
     }
 
+type FileInfo = { InPath:string; OutPath:string; RelativeOutPath:string; FrontMatter:string; IncludeInToc:bool}
+type TocEntry = { Text:string; Link:string}
+
 //Reads "front matter" which is content delimited by "---" (with the first --- being the first line of the stream.
 let readFrontMatter (streamReader:StreamReader) =
     if streamReader.ReadLine() = "---" then
@@ -82,64 +85,49 @@ let hasPandocableExtension path =
     let pandocExtensions = [| "md"; "markdown"; "textile"; "rst";|] 
     pandocExtensions |> Seq.exists (fun pe -> "." + pe = Path.GetExtension(path)) 
 
+let makeTocEntiresForPath fileInfos path =
+        [
+            //NOTE - This means scopes should not be numberwangy.
+            for fileInfo in fileInfos do
+                if fileInfo.IncludeInToc && fileInfo.InPath.StartsWith(path) then
+                    //Folder bread crumb
+                    let breadCrumbs = 
+                        fileInfo.RelativeOutPath.Split([|Path.DirectorySeparatorChar; Path.AltDirectorySeparatorChar|], StringSplitOptions.RemoveEmptyEntries)
+                    //TODO only supporting top level scope and one child folder for now.
+                    if breadCrumbs.Length = 3 then
+                        //Get the heading...
+                        let heading = 
+                            let headingFromH1s = headOrDefault "No Title"
+                            (loadHtmlFile fileInfo.OutPath).DocumentNode
+                            |> getElementTexts "h1" 
+                            |> headingFromH1s 
+                        printfn "Including %s in Toc with heading %s." fileInfo.InPath heading
+                        let siteRootedUrl = "/" + String.Join("/", breadCrumbs)
+                        yield (fileInfo, { Link=siteRootedUrl; Text=heading;})
+                    else
+                        printfn "Skipping TOC for %s." fileInfo.InPath
+        ]
+
+let getOutPath (inRootPath:string) (outRootPath:string) (path:string) =
+    let docRootRelativePath = 
+        path.Substring(inRootPath.Length+1(*Hack*)) 
+        |> numberWang 
+        |> (fun path -> if hasPandocableExtension path then Path.ChangeExtension(path, "html") else path)
+    let fullPath = 
+        Path.Combine(outRootPath.ToLower(), docRootRelativePath)
+    (fullPath.ToLower(), docRootRelativePath.ToLower())
+
 ///A scope is a bunch of pages that have a TOC.
 let buildPages (args:ExpandocArgs) = 
 
-    let getOutPath (path:string) =
-        let docRootRelativePath = 
-            path.Substring(args.DocsInPath.Length+1(*Hack*)) 
-            |> numberWang 
-        Path.Combine(args.DocsOutPath, docRootRelativePath)
-        |> (fun path -> if hasPandocableExtension path then Path.ChangeExtension(path, "html") else path)
-        |> (fun path -> path.ToLower()) 
-
-    //Get the first H1 as out TOC entry
-    (*
-    let createTocEntry  = 
-        let pagePath = "/" + scopeDir + "/" + Directory.GetParent(outPath).Name + "/" + Path.GetFileName(outPath)
-        seq { yield! getElementTexts "h1" html } 
-        |> List.ofSeq |> function 
-        | [] -> { TocEntry.Text = "??"; Url = pagePath; Visible = isVisible} 
-        | h::_ -> { TocEntry.Text = h; Url = pagePath; Visible = isVisible}
-
-
-    //Build the TOC html 
-    let tocHtml = 
-        let sb = StringBuilder()
-        sb.Append("<ul class='nav nav-list'>") |> ignore
-        for (tocEntries, _) in results do
-            let tocEntry = tocEntries.Head//We assume head is the seciton header.
-            let liFormat = "<li><a href='{0}'>{1}</a></li>"
-            sb.AppendFormat(liFormat, tocEntry.Url, tocEntry.Text) |> ignore
-            sb.Append("<ul>") |> ignore
-            for tocEntry in tocEntries.Tail do
-                if tocEntry.Visible then
-                    sb.AppendFormat(liFormat, tocEntry.Url, tocEntry.Text) |> ignore
-            sb.Append("</ul>") |> ignore
-        sb.Append("</ul>") |> ignore
-        sb.ToString()
-
-    //Write the TOC to each HTML file, except any that failed
-    let replaceNavElementWithToc result =
-        let html = 
-            let html = readFileCont result.OutPath (fun reader -> reader.ReadToEnd()) 
-            html.Replace("<nav/>", tocHtml)
-        writeTextFile html result.OutPath
-
-    for (_, conversionResults) in results do
-        for result in conversionResults do
-            if result.ErrCode = 0 then replaceNavElementWithToc result
-            else printfn "Err code %i %s converting file %s." result.ErrCode result.ErrText result.InPath
-    *)
-
-    let inOutTocs = 
+    let fileProcessingInfos = 
         //Get all the files.
         let excludedDirFilter dir = DirectoryInfo(dir).Name.StartsWith("_")
         seq { yield args.DocsInPath; yield! seqDirsBelow args.DocsInPath excludedDirFilter }
         |> seqFilesIn
         |> Seq.map (fun path -> 
             //Numberwang the output path.
-            let outPath = getOutPath path
+            let (outPath, relativeOutPath) = getOutPath args.DocsInPath args.DocsOutPath path
             if hasPandocableExtension path then
                 //Read and convert (if required) the input.
                 use stream = File.Open(path, FileMode.Open, FileAccess.Read)
@@ -153,51 +141,46 @@ let buildPages (args:ExpandocArgs) =
                 //Write the output
                 if errCode = 0 then writeTextFile output outPath
                 else printfn "Error %s for %s." errMsg path
-                (path, outPath, yamlFrontMatter, includeInToc)
+                {InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; FrontMatter=yamlFrontMatter; IncludeInToc=includeInToc}
             else
                 ensureDir <| Path.GetDirectoryName(outPath)
                 File.Copy(path, outPath, true)
-                (path, outPath, "", false)
+                {InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; FrontMatter=""; IncludeInToc=false}
             )
         |> List.ofSeq
 
     //Do TOC processing for each scope.
-    let tocEntries = 
-        [
-            for scope in args.Scopes do
-                //NOTE - This means scopes should not be numberwangy.
-                let scopeRoot = Path.Combine(args.DocsOutPath, scope).ToLower()
-                for (inPath, outPath, frontMatter, includeInToc) in inOutTocs do
-                    if includeInToc && outPath.StartsWith(scopeRoot) then
-                        //Folder bread crumb
-                        let relativePath = outPath.Substring(scopeRoot.Length)
-                        let breadCrumb = relativePath.Split([|Path.DirectorySeparatorChar; Path.AltDirectorySeparatorChar|], StringSplitOptions.RemoveEmptyEntries)
-                        if breadCrumb.Length = 2 then
-                            //Get the heading...
-                            let heading = 
-                                let headingFromH1s = headOrDefault "No Title"
-                                (loadHtmlFile outPath).DocumentNode
-                                |> getElementTexts "h1" 
-                                |> headingFromH1s 
-                            printfn "Including %s in Toc with heading %s." inPath heading
-                            yield (scope.ToLower() :: (breadCrumb |> List.ofArray), heading)
-                        else
-                            printfn "Skipping TOC for %s." inPath
-        ]
+    let scopeTocs = 
+        args.Scopes
+        |> Seq.map (fun scope ->
+            let path = Path.Combine(args.DocsInPath, scope)
+            let dirs = Directory.GetDirectories(path)
+            [ for dir in dirs do yield makeTocEntiresForPath fileProcessingInfos dir ] )
+        |> List.ofSeq
     
     //Create the TOC html fragment.
-    let tocHtml = 
-        let sb = StringBuilder()
-        sb.Append("<ul class='nav nav-list'>") |> ignore
-        for (breadCrumb, title) in tocEntries do
-            let tocEntry = tocEntries.Head//We assume head is the seciton header.
-            let liFormat = "<li><a href='{0}'>{1}</a></li>"
-            let url = "/" + String.Join("/", breadCrumb)
-            sb.AppendFormat(liFormat, url, title) |> ignore
-            sb.Append("<ul>") |> ignore
+    //TODO the TOC stuff is all a bit ugly.  Fix this up.
+    for scopeToc in scopeTocs do
+        //Build the scope TOC
+        let tocHtml = 
+            let sb = StringBuilder()
+            sb.Append("<ul class='nav nav-list'>") |> ignore
+            for tocSection in scopeToc do
+                let (fileInfo, tocEntry) = tocSection.Head//We assume head is the seciton header.
+                let liFormat = "<li><a href='{0}'>{1}</a></li>"
+                sb.AppendFormat(liFormat, tocEntry.Link, tocEntry.Text) |> ignore
+                sb.Append("<ul>") |> ignore
+                for (fileInfo, tocEntry) in tocSection.Tail do
+                    sb.AppendFormat(liFormat, tocEntry.Link, tocEntry.Text) |> ignore
+                    sb.Append("</ul>") |> ignore
             sb.Append("</ul>") |> ignore
-        sb.Append("</ul>") |> ignore
-        sb.ToString()
+            sb.ToString()
+        //Write the scope TOC.
+        for tocSection in scopeToc do
+            for (fileInfo, _) in tocSection do
+                let html = readFileCont fileInfo.OutPath (fun reader -> reader.ReadToEnd()) 
+                let htmlWithToc = html.Replace("<nav/>", tocHtml)
+                writeTextFile htmlWithToc fileInfo.OutPath
     ()
 
 ///Run this app yo!

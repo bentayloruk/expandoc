@@ -1,6 +1,8 @@
 ﻿//Module for processing command line arguments.
 //Borrowed from the F# power pack
 module Arg
+open System
+open System.Collections.Generic
 
 //Added by BT for now.  Want to sort the whole args thing out.
 type ExpandocArg =
@@ -8,11 +10,24 @@ type ExpandocArg =
     | KeyValue of string * string * string
     with override x.ToString() = match x with | Value(s,v) -> sprintf "--%s=\"%s\"" s v | KeyValue(s,k,v) -> sprintf "--%s=%s:\"%s\"" s k v
 
-let getNamedValueArg name arg =
-    match arg with
-    | Value(name,value) -> Some(value) 
-    | _ -> None
+let getArgValueOpt argName args = 
+    args 
+    |> Seq.tryPick (fun arg ->
+        match arg with 
+        | Value(n, v) when n.icompare(argName) -> Some(v)
+        | _ -> None
+    )
     
+///Gets the simple arguments from some Json.
+let argsFromJson (json:obj) = 
+    let dic = json :?> Dictionary<string,obj>
+    [
+        for kvp in dic do
+            //NOTE not doing any complex objects or lists yet.  Just strings.
+            match kvp.Value with
+            | :? String as s -> yield Value(kvp.Key, s) 
+            | _ -> ()
+    ]
 
 type ArgType = 
  | ClearArg of bool ref

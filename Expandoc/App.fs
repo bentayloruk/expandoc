@@ -12,6 +12,7 @@ open YamlDotNet.RepresentationModel
 open Arg
 open Html
 open Nustache
+open FrontMatter
 
 type ExpandocArgs =
     { DocsInPath : string;
@@ -31,47 +32,10 @@ let defaultExpandocArgs =
     Scopes = [||];
     }
 
-type FileInfo = { InPath:string; OutPath:string; RelativeOutPath:string; FrontMatter:string; IncludeInToc:bool}
+type FileInfo = { InPath:string; OutPath:string; RelativeOutPath:string; IncludeInToc:bool}
 type TocEntry = { Text:string; Link:string}
 
-//Reads "front matter" which is content delimited by "---" (with the first --- being the first line of the stream.
-let readFrontMatter (streamReader:StreamReader) =
-    if streamReader.ReadLine() = "---" then
-        let sb = StringBuilder()
-        sb.AppendLine("---") |> ignore
-        let rec readUntilFrontMatterEnds () =
-            match streamReader.ReadLine() with
-            | "---" -> sb.AppendLine("...") |> ignore//Use 3 dots as that is Yaml for end of Yaml document.  --- starts another one
-            | frontMatterData -> 
-                sb.AppendLine(frontMatterData) |> ignore
-                readUntilFrontMatterEnds ()
-        readUntilFrontMatterEnds ()
-        sb.ToString()
-    else
-        ""
-///Returns a list of (switch, value) tuples for any pandoc args in the yaml.  Empty list when none.
-let argsFromYaml (yaml:string) (templatesPath:string) =
-    match yaml with
-    | "" -> []
-    | _ ->
-        //Yield from the Yaml!
-        use yr = new StringReader(yaml)
-        let ys = new YamlStream()
-        ys.Load(yr) |> ignore
-        let ymn = ys.Documents.[0].RootNode :?> YamlMappingNode
-        [
-            for node in ymn.Children do
-                match (node.Key.ToString(), node.Value.ToString()) with
-                | ("layout", template) -> 
-                    let fullPath = Path.Combine([|templatesPath;template;|])
-                    if File.Exists(fullPath) then
-                        yield Value("layout", fullPath)
-                    else 
-                        printfn "Missing template %s." fullPath
-                | ("title", title) -> 
-                    yield! [KeyValue("variable", "pagetitle", title); KeyValue("variable", "title", title)]
-                | _ -> ()
-        ]
+let argsFromFrontMatter reader = match readFrontMatter reader with | Json(o) -> argsFromJson o | _ -> []
 
 ///Removes leading numbers from file and dir paths (e.g. 1234-file.html -> file.html).
 let numberWang (path:string) =
@@ -134,7 +98,7 @@ let buildPages (args:ExpandocArgs) =
         let excludedDirFilter dir = DirectoryInfo(dir).Name.StartsWith("_")
         seq { yield args.DocsInPath; yield! seqDirsBelow args.DocsInPath excludedDirFilter }
         |> seqFilesIn
-        |> Seq.map (fun path -> 
+        |> Seq.choose (fun path -> 
             //Numberwang the output path.
             let (outPath, relativeOutPath) = getOutPath args.DocsInPath args.DocsOutPath path
             if hasFrontMatterableExtension path then
@@ -142,23 +106,23 @@ let buildPages (args:ExpandocArgs) =
                 use stream = File.Open(path, FileMode.Open, FileAccess.Read)
                 use reader = new StreamReader(stream)
                 //Get args from front matter.
-                let yamlFrontMatter = readFrontMatter reader
-                let yamlArgs = argsFromYaml yamlFrontMatter args.TemplatesPath
-                let includeInToc = yamlFrontMatter.Contains("tocex") <> true//Hack for now... 
+                let fmArgs = argsFromFrontMatter reader //args.TemplatesPath
+                //Check for TOC flag
+                let includeInToc = 
+                    let tocArg = getArgValueOpt "toc" fmArgs
+                    if tocArg = None then true else Convert.ToBoolean(tocArg.Value)
                 //Convert if required.
                 let (errCode, errMsg, output) = 
-                    //Pandoc.toHtml args.PandocPath yamlArgs reader
+                    //Pandoc.toHtml args.PandocPath fmArgs reader
                     if hasPandocableExtension path then
                         Pandoc.toHtml args.PandocPath [] reader
                     else (0,"", reader.ReadToEnd())
                 //Get the layout/template path
-                let templateName = 
-                    let getLayout = function | Value("layout", v) -> Some(v) | _ -> None 
-                    yamlArgs |> Seq.tryPick getLayout
+                let templateName = getArgValueOpt "template" fmArgs
                 //Get all the vars in a map for the template
                 let vars = 
                     let valueChooser = function | Value(n,v) -> Some((n,v)) | _ -> None
-                    yamlArgs |> Seq.choose valueChooser
+                    fmArgs |> Seq.choose valueChooser
                 let output = 
                     if templateName.IsSome then 
                         let fullLayoutPath = Path.Combine(args.TemplatesPath, templateName.Value)
@@ -168,11 +132,14 @@ let buildPages (args:ExpandocArgs) =
                 //Write the output
                 if errCode = 0 then writeTextFile output outPath
                 else printfn "Error %s for %s." errMsg path
-                {InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; FrontMatter=yamlFrontMatter; IncludeInToc=includeInToc}
+                Some({InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; IncludeInToc=includeInToc})
             else
-                ensureDir <| Path.GetDirectoryName(outPath)
-                File.Copy(path, outPath, true)
-                {InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; FrontMatter=""; IncludeInToc=false}
+                if outPath.EndsWith("~") = true then 
+                    None 
+                else
+                    ensureDir <| Path.GetDirectoryName(outPath)
+                    File.Copy(path, outPath, true)
+                    Some({InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; IncludeInToc=false})
             )
         |> List.ofSeq
 

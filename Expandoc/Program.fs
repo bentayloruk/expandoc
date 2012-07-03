@@ -6,6 +6,8 @@ open System.IO
 open App
 open Arg
 
+let templateFolderName = "_templates"
+
 [<EntryPoint>]
 let main argv = 
     
@@ -54,7 +56,7 @@ let main argv =
                     PandocPath = !pandocPath;
                     DocsInPath = !docInPath;
                     DocsOutPath = !docOutPath;
-                    TemplatesPath = Path.Combine(!docInPath, "_layouts")
+                    TemplatesPath = Path.Combine(!docInPath, templateFolderName)
                     HttpServerPort = !webServerPort
                     Scopes = !scopes
                     }

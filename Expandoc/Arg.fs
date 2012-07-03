@@ -10,6 +10,9 @@ type ExpandocArg =
     | KeyValue of string * string * string
     with override x.ToString() = match x with | Value(s,v) -> sprintf "--%s=\"%s\"" s v | KeyValue(s,k,v) -> sprintf "--%s=%s:\"%s\"" s k v
 
+let valueTuples args = 
+    args |> Seq.choose (fun arg -> match arg with | Value(n,v) -> Some((n,v)) | _ -> None) |> List.ofSeq
+
 let getArgValueOpt argName args = 
     args 
     |> Seq.tryPick (fun arg ->

@@ -107,7 +107,8 @@ let buildPages (args:ExpandocArgs) =
             let parent = getArgValueOpt "template" fmArgs
             let template = reader.ReadToEnd()
             let templateFile = Path.GetFileName(templatePath)
-            (templateFile, {FileName=templateFile; Template=template; ParentFileName=parent})
+            let values = valueTuples fmArgs |> List.ofSeq
+            (templateFile, {FileName=templateFile; Template=template; ParentFileName=parent; Vars = values})
         )
         |> Map.ofSeq
 
@@ -138,9 +139,7 @@ let buildPages (args:ExpandocArgs) =
                 //Get the layout/template path
                 let templateName = getArgValueOpt "template" fmArgs
                 //Get all the vars in a map for the template
-                let vars = 
-                    let valueChooser = function | Value(n,v) -> Some((n,v)) | _ -> None
-                    fmArgs |> Seq.choose valueChooser
+                let vars = valueTuples fmArgs
                 let output = 
                     if templateName.IsSome then 
                         let fullLayoutPath = Path.Combine(args.TemplatesPath, templateName.Value)

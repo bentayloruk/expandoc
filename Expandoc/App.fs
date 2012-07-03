@@ -32,6 +32,7 @@ let defaultExpandocArgs =
     Scopes = [||];
     }
 
+
 type FileInfo = { InPath:string; OutPath:string; RelativeOutPath:string; IncludeInToc:bool}
 type TocEntry = { Text:string; Link:string}
 
@@ -89,9 +90,26 @@ let getOutPath (inRootPath:string) (outRootPath:string) (path:string) =
         Path.Combine(outRootPath.ToLower(), docRootRelativePath)
     (fullPath.ToLower(), docRootRelativePath.ToLower())
 
-        
+let validFile (filePath:string) = 
+    not (filePath.EndsWith("~") || filePath.EndsWith(".swp"))
+
 ///A scope is a bunch of pages that have a TOC.
 let buildPages (args:ExpandocArgs) = 
+
+    //Get template parents map
+    let templates = 
+        Directory.GetFiles(args.TemplatesPath)
+        |> Seq.filter validFile
+        |> Seq.map (fun templatePath ->
+            use stream = File.Open(templatePath, FileMode.Open, FileAccess.Read)
+            use reader = new StreamReader(stream)
+            let fmArgs = argsFromFrontMatter reader
+            let parent = getArgValueOpt "template" fmArgs
+            let template = reader.ReadToEnd()
+            let templateFile = Path.GetFileName(templatePath)
+            (templateFile, {FileName=templateFile; Template=template; ParentFileName=parent})
+        )
+        |> Map.ofSeq
 
     let fileProcessingInfos = 
         //Get all the files.
@@ -106,7 +124,7 @@ let buildPages (args:ExpandocArgs) =
                 use stream = File.Open(path, FileMode.Open, FileAccess.Read)
                 use reader = new StreamReader(stream)
                 //Get args from front matter.
-                let fmArgs = argsFromFrontMatter reader //args.TemplatesPath
+                let fmArgs = argsFromFrontMatter reader
                 //Check for TOC flag
                 let includeInToc = 
                     let tocArg = getArgValueOpt "toc" fmArgs
@@ -126,20 +144,19 @@ let buildPages (args:ExpandocArgs) =
                 let output = 
                     if templateName.IsSome then 
                         let fullLayoutPath = Path.Combine(args.TemplatesPath, templateName.Value)
-                        let vars = seq { yield ("content", output); yield! vars }
-                        nustache fullLayoutPath vars 
+                        nustache output templateName.Value templates vars 
                     else output
                 //Write the output
                 if errCode = 0 then writeTextFile output outPath
                 else printfn "Error %s for %s." errMsg path
                 Some({InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; IncludeInToc=includeInToc})
             else
-                if outPath.EndsWith("~") = true then 
-                    None 
-                else
+                if validFile outPath then
                     ensureDir <| Path.GetDirectoryName(outPath)
                     File.Copy(path, outPath, true)
                     Some({InPath=path; OutPath=outPath; RelativeOutPath=relativeOutPath; IncludeInToc=false})
+                else
+                    None 
             )
         |> List.ofSeq
 

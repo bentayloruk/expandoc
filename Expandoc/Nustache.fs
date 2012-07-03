@@ -2,8 +2,19 @@
 open Nustache.Core
 open System.Collections.Generic
 
-let nustache templatePath vars =
-    let dic = Dictionary<string,obj>()
-    for (k,v) in vars do dic.Add(k, v)
-    Render.FileToString(templatePath, dic)
+type Template = { FileName:string; Template:string; ParentFileName:string option;}
 
+let nustache content templateName (templatesMap:Map<string,Template>) vars =
+    let rec inner content' templateName' vars' =
+        match templatesMap.TryFind templateName' with
+        | Some(template) -> 
+            let dic = Dictionary<string,obj>()
+            for (k,v) in vars do dic.Add(k, v)
+            //TODO this is Expandoc specific and not nustachey.
+            dic.Add("content", content')
+            let output = Render.StringToString(template.Template, dic)
+            match template.ParentFileName with
+            | Some(parent) ->  inner output parent vars 
+            | None -> output
+        | None -> failwith <| sprintf "No template named %s." templateName'
+    inner content templateName vars 

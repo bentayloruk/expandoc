@@ -18,6 +18,7 @@ let readFrontMatter (streamReader:StreamReader) =
         let rec readUntilFrontMatterEnds () =
             match streamReader.ReadLine() with
             | "---" -> ()
+            | null -> ()
             | frontMatterData -> 
                 sb.AppendLine(frontMatterData) |> ignore
                 readUntilFrontMatterEnds ()

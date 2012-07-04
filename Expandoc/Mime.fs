@@ -1,4 +1,5 @@
 ﻿module Mime
+open System.IO
 
 let private binaryMimeTypeLefts = [ "image"; "video"; "application"; "audio";]
 
@@ -86,6 +87,7 @@ let private fileExtensionToMimeMap =
     ("m14","application/x-msmediaview");
     ("m3u","audio/x-mpegurl");
     ("man","application/x-troff-man");
+    ("md","text/x-markdown");
     ("mdb","application/x-msaccess");
     ("me","application/x-troff-me");
     ("mht","message/rfc822");
@@ -205,4 +207,10 @@ let private fileExtensionToMimeMap =
 let mimeTypeForFileExtension fileExtension =
     if fileExtensionToMimeMap.ContainsKey fileExtension then 
         Some(fileExtensionToMimeMap.Item fileExtension)
+    else None
+
+let mimeTypeForPath path =
+    let extension = Path.GetExtension(path).Substring(1) 
+    if fileExtensionToMimeMap.ContainsKey extension then 
+        Some(fileExtensionToMimeMap.Item extension)
     else None

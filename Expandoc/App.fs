@@ -13,6 +13,7 @@ open Arg
 open Html
 open Nustache
 open FrontMatter
+open Mime
 
 let emptyTocTitleText = "No Title"
 
@@ -80,32 +81,42 @@ let buildTocs args =
     let scopeTocs = 
         args.Scopes
         |> Seq.map (fun scope ->
+            //Get the top level dirs in scope.
             let dirs = 
                 let path = Path.Combine(args.DocsInPath, scope)
                 Directory.GetDirectories(path)
+            //Get the relative root path.
             let getHref path = 
                 let (_, relativePath) = getOutPath args.DocsInPath args.DocsOutPath path
                 let path = relativePath.Replace(Path.DirectorySeparatorChar, '/')
                 "/" + path.Replace(Path.AltDirectorySeparatorChar, '/')
             let toc = 
                 [ for dir in dirs do 
-                    yield [
-                        let filePaths = getFiles dir 
-                        for path in filePaths do
-                            //TODO this bit of code is duplicated.  Sort.
-                            use stream = File.Open(path, FileMode.Open, FileAccess.Read)
-                            use reader = new StreamReader(stream)
-                            let fmArgs = argsFromFrontMatter reader
-                            let title = 
-                                let x = getArgValueOpt "toc-title" fmArgs
-                                let x = if x.IsSome then x else getArgValueOpt "title" fmArgs
-                                if x.IsSome then x.Value else emptyTocTitleText 
-                            //Check for TOC flag
-                            let incInToc = 
-                                let tocArg = getArgValueOpt "toc" fmArgs
-                                if tocArg = None then true else Convert.ToBoolean(tocArg.Value)
-                            if incInToc then
-                                yield {Text=title; Link = getHref path}
+                    //Get files, except those that are binary mime types.
+                    let filePaths = 
+                        getFiles dir 
+                        |> Seq.filter (fun path ->
+                            match mimeTypeForPath path with | None -> false | Some(mt) -> not(isBinaryMimeType mt)
+                        )
+                        |> List.ofSeq 
+                    //Only yield a toc section if we have any files!
+                    if filePaths.Length > 0 then
+                        yield [
+                            for path in filePaths do
+                                //TODO this bit of code is duplicated.  Sort.
+                                use stream = File.Open(path, FileMode.Open, FileAccess.Read)
+                                use reader = new StreamReader(stream)
+                                let fmArgs = argsFromFrontMatter reader
+                                let title = 
+                                    let x = getArgValueOpt "toc-title" fmArgs
+                                    let x = if x.IsSome then x else getArgValueOpt "title" fmArgs
+                                    if x.IsSome then x.Value else emptyTocTitleText 
+                                //Check for TOC flag
+                                let incInToc = 
+                                    let tocArg = getArgValueOpt "toc" fmArgs
+                                    if tocArg = None then true else Convert.ToBoolean(tocArg.Value)
+                                if incInToc then
+                                    yield {Text=title; Link = getHref path}
                     ]
                 ]
             (scope + "-toc",toc)

@@ -24,5 +24,5 @@ let nustache content templateName (templatesMap:Map<string,Template>) vars =
             match template.ParentFileName with
             | Some(parent) ->  inner output parent varAcc 
             | None -> output
-        | None -> failwith <| sprintf "No template named %s." templateName'
+        | None -> printfn "Missing template %s" templateName'; content' //failwith <| sprintf "No template named %s." templateName'
     inner content templateName vars 

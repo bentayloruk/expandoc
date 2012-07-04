@@ -122,7 +122,7 @@ let buildTocs args =
                 sb.Append("<ul>") |> ignore
                 for te in tocSection.Tail do
                     sb.AppendFormat(liFormat, te.Link, te.Text) |> ignore
-                    sb.Append("</ul>") |> ignore
+                sb.Append("</ul>") |> ignore
             sb.Append("</ul>") |> ignore
             yield (scope, sb.ToString())
     ] 

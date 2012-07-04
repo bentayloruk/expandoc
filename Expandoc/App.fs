@@ -14,6 +14,7 @@ open Html
 open Nustache
 open FrontMatter
 open Mime
+open Exception
 
 let emptyTocTitleText = "No Title"
 
@@ -36,7 +37,7 @@ let defaultExpandocArgs =
     }
 
 type FileInfo = { InPath:string; OutPath:string; RelativeOutPath:string;}
-type TocEntry = { Text:string; Link:string}
+type TocEntry = { Text:string; Link:string; HyperLink: bool}
 
 let argsFromFrontMatter reader = match readFrontMatter reader with | Json(o) -> argsFromJson o | _ -> []
 
@@ -103,20 +104,28 @@ let buildTocs args =
                     if filePaths.Length > 0 then
                         yield [
                             for path in filePaths do
-                                //TODO this bit of code is duplicated.  Sort.
-                                use stream = File.Open(path, FileMode.Open, FileAccess.Read)
-                                use reader = new StreamReader(stream)
-                                let fmArgs = argsFromFrontMatter reader
-                                let title = 
-                                    let x = getArgValueOpt "toc-title" fmArgs
-                                    let x = if x.IsSome then x else getArgValueOpt "title" fmArgs
-                                    if x.IsSome then x.Value else emptyTocTitleText 
-                                //Check for TOC flag
-                                let incInToc = 
-                                    let tocArg = getArgValueOpt "toc" fmArgs
-                                    if tocArg = None then true else Convert.ToBoolean(tocArg.Value)
-                                if incInToc then
-                                    yield {Text=title; Link = getHref path}
+                                //Do IO and swallow fails.  We will be eventually consistent (maybe :)!
+                                //TODO Only swallow the fails if in local server mode.
+                                let readArgs p = 
+                                    use stream = File.Open(p, FileMode.Open, FileAccess.Read)
+                                    use reader = new StreamReader(stream)
+                                    argsFromFrontMatter reader
+                                let (ioSuccess, fmArgs) = (protect "TOC IO Problem" [] readArgs) path
+                                //If IO was success add to TOC.
+                                if ioSuccess then
+                                    let title = 
+                                        let x = getArgValueOpt "toc-title" fmArgs
+                                        let x = if x.IsSome then x else getArgValueOpt "title" fmArgs
+                                        if x.IsSome then x.Value else emptyTocTitleText 
+                                    //Check for TOC flag
+                                    let incInToc = 
+                                        let tocArg = getArgValueOpt "toc" fmArgs
+                                        if tocArg = None then true else Convert.ToBoolean(tocArg.Value)
+                                    let hyperlink = 
+                                        let tocArg = getArgValueOpt "toc-link" fmArgs
+                                        if tocArg = None then true else Convert.ToBoolean(tocArg.Value)
+                                    if incInToc then
+                                        yield {Text=title; Link = getHref path; HyperLink = hyperlink}
                     ]
                 ]
             (scope + "-toc",toc)
@@ -125,6 +134,13 @@ let buildTocs args =
     
     //Create the TOC html fragment.
     [
+        let formatTocEntry tocEntry = 
+            let liContent = 
+                if tocEntry.HyperLink then 
+                    String.Format("<a href='{0}'>{1}</a>", tocEntry.Link, tocEntry.Text)
+                else tocEntry.Text
+            String.Format("<li>{0}</li>", liContent)
+
         for (scope, tocSections) in scopeTocs do
             //Build the scope TOC
             //TODO make this a template (with default hardcoded)
@@ -132,11 +148,10 @@ let buildTocs args =
             sb.AppendFormat("<ul class='nav nav-list toc {0}'>", scope) |> ignore
             for tocSection in tocSections do
                 let te = tocSection.Head//We assume head is the seciton header.
-                let liFormat = "<li><a href='{0}'>{1}</a></li>"
-                sb.AppendFormat(liFormat, te.Link, te.Text) |> ignore
+                sb.Append(formatTocEntry te) |> ignore
                 sb.Append("<ul>") |> ignore
                 for te in tocSection.Tail do
-                    sb.AppendFormat(liFormat, te.Link, te.Text) |> ignore
+                    sb.Append(formatTocEntry te) |> ignore
                 sb.Append("</ul>") |> ignore
             sb.Append("</ul>") |> ignore
             yield (scope, sb.ToString())

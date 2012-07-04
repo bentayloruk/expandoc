@@ -113,10 +113,13 @@ let buildTocs args =
                                 let (ioSuccess, fmArgs) = (protect "TOC IO Problem" [] readArgs) path
                                 //If IO was success add to TOC.
                                 if ioSuccess then
-                                    let title = 
-                                        let x = getArgValueOpt "toc-title" fmArgs
-                                        let x = if x.IsSome then x else getArgValueOpt "title" fmArgs
-                                        if x.IsSome then x.Value else emptyTocTitleText 
+                                    let tocTitle = 
+                                        seq { 
+                                            yield (getArgValueOpt "toc-title" fmArgs);
+                                            yield (getArgValueOpt "title" fmArgs);
+                                            yield Some(emptyTocTitleText);
+                                            }
+                                        |> Seq.pick (fun s -> s)
                                     //Check for TOC flag
                                     let incInToc = 
                                         let tocArg = getArgValueOpt "toc" fmArgs
@@ -125,7 +128,7 @@ let buildTocs args =
                                         let tocArg = getArgValueOpt "toc-link" fmArgs
                                         if tocArg = None then true else Convert.ToBoolean(tocArg.Value)
                                     if incInToc then
-                                        yield {Text=title; Link = getHref path; HyperLink = hyperlink}
+                                        yield {Text=tocTitle; Link = getHref path; HyperLink = hyperlink}
                     ]
                 ]
             (scope + "-toc",toc)

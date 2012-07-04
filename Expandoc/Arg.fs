@@ -20,6 +20,7 @@ let getArgValueOpt argName args =
         | Value(n, v) when n.icompare(argName) -> Some(v)
         | _ -> None
     )
+
     
 ///Gets the simple arguments from some Json.
 let argsFromJson (json:obj) = 

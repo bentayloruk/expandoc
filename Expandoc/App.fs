@@ -71,6 +71,10 @@ let getOutPath (inRootPath:string) (outRootPath:string) (path:string) =
 let validFile (filePath:string) = 
     not (filePath.EndsWith("~") || filePath.EndsWith(".swp"))
 
+let getFiles dir = 
+    let files = Directory.GetFiles(dir)
+    [| for file in files do if validFile file then yield file |]
+
 let buildTocs args = 
     //Do TOC processing for each scope.
     let scopeTocs = 
@@ -86,7 +90,7 @@ let buildTocs args =
             let toc = 
                 [ for dir in dirs do 
                     yield [
-                        let filePaths = Directory.GetFiles(dir)
+                        let filePaths = getFiles dir 
                         for path in filePaths do
                             //TODO this bit of code is duplicated.  Sort.
                             use stream = File.Open(path, FileMode.Open, FileAccess.Read)
@@ -114,7 +118,7 @@ let buildTocs args =
             //Build the scope TOC
             //TODO make this a template (with default hardcoded)
             let sb = StringBuilder()
-            sb.Append("<ul class='nav nav-list'>") |> ignore
+            sb.AppendFormat("<ul class='nav nav-list toc {0}'>", scope) |> ignore
             for tocSection in tocSections do
                 let te = tocSection.Head//We assume head is the seciton header.
                 let liFormat = "<li><a href='{0}'>{1}</a></li>"
@@ -138,7 +142,7 @@ let buildPages (args:ExpandocArgs) =
 
     //Get template parents map
     let templates = 
-        Directory.GetFiles(args.TemplatesPath)
+        getFiles args.TemplatesPath
         |> Seq.filter validFile
         |> Seq.map (fun templatePath ->
             use stream = File.Open(templatePath, FileMode.Open, FileAccess.Read)

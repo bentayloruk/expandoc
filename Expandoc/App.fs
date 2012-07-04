@@ -174,15 +174,19 @@ let buildPages (args:ExpandocArgs) =
         getFiles args.TemplatesPath
         |> Seq.filter validFile
         |> Seq.map (fun templatePath ->
-            use stream = File.Open(templatePath, FileMode.Open, FileAccess.Read)
-            use reader = new StreamReader(stream)
-            let fmArgs = argsFromFrontMatter reader
-            let parent = getArgValueOpt "template" fmArgs
-            let template = reader.ReadToEnd()
-            let templateFile = Path.GetFileName(templatePath)
-            let values = valueTuples fmArgs |> List.ofSeq
-            (templateFile, {FileName=templateFile; Template=template; ParentFileName=parent; Vars = values})
+            try
+                use stream = File.Open(templatePath, FileMode.Open, FileAccess.Read)
+                use reader = new StreamReader(stream)
+                let fmArgs = argsFromFrontMatter reader
+                let parent = getArgValueOpt "template" fmArgs
+                let template = reader.ReadToEnd()
+                let templateFile = Path.GetFileName(templatePath)
+                let values = valueTuples fmArgs |> List.ofSeq
+                Some((templateFile, {FileName=templateFile; Template=template; ParentFileName=parent; Vars = values}))
+            with
+            | :? IOException -> None 
         )
+        |> Seq.choose (fun x -> x)
         |> Map.ofSeq
 
     //Copy over files and convert the ones that need it.

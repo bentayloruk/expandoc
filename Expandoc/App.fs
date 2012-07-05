@@ -112,7 +112,7 @@ let buildTocs args =
                                     argsFromFrontMatter reader
                                 let (ioSuccess, fmArgs) = (protect "TOC IO Problem" [] readArgs) path
                                 //If IO was success add to TOC.
-                                if ioSuccess then
+                                if ioSuccess && argNotPresentOrSetTo "published" fmArgs "true" then
                                     let tocTitle = 
                                         seq { 
                                             yield (getArgValueOpt "toc-title" fmArgs);
@@ -150,12 +150,13 @@ let buildTocs args =
             let sb = StringBuilder()
             sb.AppendFormat("<ul class='nav nav-list toc {0}'>", scope) |> ignore
             for tocSection in tocSections do
-                let te = tocSection.Head//We assume head is the seciton header.
-                sb.Append(formatTocEntry te) |> ignore
-                sb.Append("<ul>") |> ignore
-                for te in tocSection.Tail do
+                if tocSection.Length > 1 then
+                    let te = tocSection.Head//We assume head is the seciton header.
                     sb.Append(formatTocEntry te) |> ignore
-                sb.Append("</ul>") |> ignore
+                    sb.Append("<ul>") |> ignore
+                    for te in tocSection.Tail do
+                        sb.Append(formatTocEntry te) |> ignore
+                    sb.Append("</ul>") |> ignore
             sb.Append("</ul>") |> ignore
             yield (scope, sb.ToString())
     ] 

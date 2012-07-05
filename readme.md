@@ -9,6 +9,13 @@ This project is early doors.  I'm going to use it for the new [Enticify website]
 
 *To early to be used :)*
 
+## Table of Contents Generation
+
+Expandoc will generate and HTML Table of Contents for each `scope` you specify on the command line.
+
+* The first file in a section will appear as the section heading.
+* A section must have more than one input file in order to appear in the TOC. 
+
 ## The Transformation Process
 
 *  For each file in and below the **documents in path** (`pdi` switch).
@@ -21,6 +28,7 @@ Uses `numberWang` to go from `c:\doc\00-intro\10-text.md` to `c:\outdoc\intro\te
     * Save HTML output to `outputPath` 
 *  Else 
     * Copy file to `outputPath`.
+
 
 ## Make Contact
 

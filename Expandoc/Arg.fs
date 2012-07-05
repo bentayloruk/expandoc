@@ -21,6 +21,13 @@ let getArgValueOpt argName args =
         | _ -> None
     )
 
+let argNotPresentOrSetTo argName args (value:string) = 
+    //YUCK this is all stringy for now, fix up the whole front matter arg typing.
+    match getArgValueOpt argName args with
+    | None -> true
+    | Some(v) when v.ToLower() = value.ToLower()  -> true
+    | Some(_) -> false 
+
     
 ///Gets the simple arguments from some Json.
 let argsFromJson (json:obj) = 

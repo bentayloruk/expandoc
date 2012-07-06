@@ -39,6 +39,10 @@ let defaultExpandocArgs =
 type FileInfo = { InPath:string; OutPath:string; RelativeOutPath:string;}
 type TocEntry = { Text:string; Link:string; HyperLink: bool}
 
+//Change this function to change the template engine.
+let template output templateName templates vars =
+    nustache output templateName templates vars 
+
 let argsFromFrontMatter reader = match readFrontMatter reader with | Json(o) -> argsFromJson o | _ -> []
 
 ///Removes leading numbers from file and dir paths (e.g. 1234-file.html -> file.html).
@@ -131,7 +135,10 @@ let buildTocs args =
                                         yield {Text=tocTitle; Link = getHref path; HyperLink = hyperlink}
                     ]
                 ]
-            (scope + "-toc",toc)
+            let templateScopeName = 
+                scope.Replace('\\','-') + "-toc"
+                |> (fun s -> s.Replace('/','-')) //Just in case mono.  This code sucks!
+            (templateScopeName,toc)
             )
         |> List.ofSeq
     
@@ -218,7 +225,7 @@ let buildPages (args:ExpandocArgs) =
                 let output = 
                     if templateName.IsSome then 
                         let fullLayoutPath = Path.Combine(args.TemplatesPath, templateName.Value)
-                        nustache output templateName.Value templates vars 
+                        template output templateName.Value templates vars 
                     else output
                 //Write the output
                 if errCode = 0 then writeTextFile output outPath
@@ -239,9 +246,13 @@ let buildPages (args:ExpandocArgs) =
 ///Run this app yo!
 let runApp (args:ExpandocArgs) =
 
-    //Initial clean and build.
-    cleanDirectory args.DocsOutPath
-    let results = buildPages args
+    let buildSite () = 
+        //Initial clean and build.
+        cleanDirectory args.DocsOutPath
+        buildPages args
+
+    //Call it here to start, and then below on file detection changes.
+    buildSite ()
 
     //Web server output (if requested) and auto-build on changes.
     match args.HttpServerPort with
@@ -249,7 +260,7 @@ let runApp (args:ExpandocArgs) =
         //Watch for rebuilds...
         let fsw = new FileSystemWatcher()
         fsw.Path <- args.DocsInPath
-        let rebuildSite e = buildPages args |> ignore
+        let rebuildSite e = buildSite () |> ignore
         fsw.Changed.Add(rebuildSite)
         fsw.Deleted.Add(rebuildSite)
         fsw.Created.Add(rebuildSite)

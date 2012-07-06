@@ -10,6 +10,7 @@ type FrontMatter =
     | Json of (*json*) obj
     | UnknownOrBad of (*The front matter we can't parse*) string
     | NoFrontMatter 
+    | EmptyFrontMatter (*the delimiters are present, but no content*) 
 
 let readFrontMatter (streamReader:StreamReader) =
     if streamReader.ReadLine() = "---" then
@@ -24,13 +25,16 @@ let readFrontMatter (streamReader:StreamReader) =
                 readUntilFrontMatterEnds ()
         readUntilFrontMatterEnds ()
         let fm = sb.ToString()
-        //Try and parse it into a known format.
-        try 
-            let js = JavaScriptSerializer()
-            let json = js.DeserializeObject(fm)
-            Json(json)
-        with 
-           | ex -> printfn "%s" ex.Message; UnknownOrBad(fm)
+        if String.IsNullOrEmpty(fm) then
+            EmptyFrontMatter 
+        else
+            //Try and parse it into a known format.
+            try 
+                let js = JavaScriptSerializer()
+                let json = js.DeserializeObject(fm)
+                if json = null then UnknownOrBad(fm) else Json(json)
+            with 
+               | ex -> printfn "%s" ex.Message; UnknownOrBad(fm)
     else
         //HACK reset the stream.  This should work for us but is rank.
         streamReader.DiscardBufferedData()

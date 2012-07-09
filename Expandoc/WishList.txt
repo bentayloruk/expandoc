@@ -7,6 +7,7 @@ Rename value refactoring.
 Goto type/definition (search box one)
 Find usages.
 Optimise "open"s
+Implement members (creating derived class)
 
 Comment block (VS support this?)
 Show method sig help (VS support this?)

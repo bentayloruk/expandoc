@@ -57,13 +57,13 @@ let numberWang (path:string) =
     let wangedParts = parts |> Seq.map nameWithoutNumberWang |> Array.ofSeq
     Path.Combine(wangedParts)
 
-let hasFrontMatterableExtension path =
-    let fmExts = [| "md"; "markdown"; "textile"; "rst"; "htm"; "html"; "txt"; "css"; "js"|] 
-    fmExts |> Seq.exists (fun pe -> "." + pe = Path.GetExtension(path)) 
+let hasFrontMatterableExtension =
+    let fmExts = Set.ofList [ ".md"; ".markdown"; ".textile"; ".rst"; ".htm"; ".html"; ".txt"; ".css"; ".js"] 
+    fun path -> fmExts.Contains (Path.GetExtension(path))
     
-let hasPandocableExtension path = 
-    let pandocExtensions = [| "md"; "markdown"; "textile"; "rst";|] 
-    pandocExtensions |> Seq.exists (fun pe -> "." + pe = Path.GetExtension(path)) 
+let hasPandocableExtension = 
+    let pandocExtensions = Set.ofList [ ".md"; ".markdown"; ".textile"; ".rst"; ]
+    fun path -> pandocExtensions.Contains (Path.GetExtension(path))
 
 let getOutPath (inRootPath:string) (outRootPath:string) (path:string) =
     let docRootRelativePath = 

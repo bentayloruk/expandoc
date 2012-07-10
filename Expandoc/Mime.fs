@@ -98,6 +98,7 @@ let private fileExtensionToMimeMap =
     ("movie","video/x-sgi-movie");
     ("mp2","video/mpeg");
     ("mp3","audio/mpeg");
+    ("mp4","video/mp4");
     ("mpa","video/mpeg");
     ("mpe","video/mpeg");
     ("mpeg","video/mpeg");
@@ -198,6 +199,7 @@ let private fileExtensionToMimeMap =
     ("xlt","application/vnd.ms-excel");
     ("xlw","application/vnd.ms-excel");
     ("xof","x-world/x-vrml");
+    ("xmp","application/octet-stream");
     ("xpm","image/x-xpixmap");
     ("xwd","image/x-xwindowdump");
     ("z","application/x-compress");

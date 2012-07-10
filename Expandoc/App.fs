@@ -160,10 +160,10 @@ let buildTocs args =
                 if tocSection.Length > 1 then
                     let te = tocSection.Head//We assume head is the seciton header.
                     sb.Append(formatTocEntry te) |> ignore
-                    sb.Append("<ul>") |> ignore
+                    sb.Append("<li><ul>") |> ignore
                     for te in tocSection.Tail do
                         sb.Append(formatTocEntry te) |> ignore
-                    sb.Append("</ul>") |> ignore
+                    sb.Append("</ul></li>") |> ignore
             sb.Append("</ul>") |> ignore
             yield (scope, sb.ToString())
     ] 
@@ -246,10 +246,11 @@ let buildPages (args:ExpandocArgs) =
 ///Run this app yo!
 let runApp (args:ExpandocArgs) =
 
-    let buildSite () = 
-        //Initial clean and build.
-        cleanDirectory args.DocsOutPath
-        buildPages args
+    //Initial clean.
+    cleanDirectory args.DocsOutPath
+
+    //Build fun for initial build and later calls.
+    let buildSite () = buildPages args
 
     //Call it here to start, and then below on file detection changes.
     buildSite ()

@@ -56,6 +56,7 @@ let fileSystemServer path (port:int) =
         | (404, _,_,_) -> 
             printfn "404 for %s." path
             let response = Response(resultDelegate, ContentType = "")
+            response.Write("Not found") |> ignore
             response.End()
         | (resCode, _,_,_) -> failwith "Unhandled response code %i." resCode
 

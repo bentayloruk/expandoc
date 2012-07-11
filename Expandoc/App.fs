@@ -247,7 +247,11 @@ let buildPages (args:ExpandocArgs) =
 let runApp (args:ExpandocArgs) =
 
     //Initial clean.
-    cleanDirectory args.DocsOutPath
+    let excludeGitFolder dirPath = 
+        let name = DirectoryInfo(dirPath).Name
+        name = ".git"
+
+    cleanDirectoryExcept args.DocsOutPath excludeGitFolder
 
     //Build fun for initial build and later calls.
     let buildSite () = buildPages args

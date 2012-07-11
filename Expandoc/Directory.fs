@@ -24,14 +24,18 @@ let rec filesInDirs dirs =
                 yield! Directory.EnumerateFiles(dir)
         }
 
-///Deletes all the child directories and files in path.
-let cleanDirectory path =
+let cleanDirectoryExcept path dirExclude =
     if Directory.Exists(path) then 
         for dir in Directory.GetDirectories(path) do
-            Directory.Delete(dir, true)
+            if dirExclude dir <> true then 
+                Directory.Delete(dir, true)
         for file in Directory.GetFiles(path) do
             File.Delete(file)
     else ()
+
+///Deletes all the child directories and files in path.
+let cleanDirectory path =
+    cleanDirectoryExcept path (fun _ -> false)
 
 let ensureDir dir = 
     if Directory.Exists(dir) <> true 

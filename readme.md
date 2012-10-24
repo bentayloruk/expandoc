@@ -2,7 +2,7 @@
 
 Creates a static documentation site using [Pandoc's](http://johnmacfarlane.net/pandoc/) HTML output.
 
-This project is early doors.  I'm going to use it for the new [Enticify website](http://www.enticify.com/) *which is currently not live*.  
+This project is early doors.  I built it to easily generate and maintain [Enticify website](http://www.enticify.com/).  
 
 
 # Usage

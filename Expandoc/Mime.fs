@@ -203,6 +203,7 @@ let private fileExtensionToMimeMap =
     ("xpm","image/x-xpixmap");
     ("xwd","image/x-xwindowdump");
     ("z","application/x-compress");
+    ("woff", "application/x-font-woff");
     ("zip","application/zip");|] |> Map.ofArray
 
 ///Returns the MIME type for a given file extension (without the dot).  None if no match.

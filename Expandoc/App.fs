@@ -66,13 +66,14 @@ let hasPandocableExtension =
     fun path -> pandocExtensions.Contains (Path.GetExtension(path))
 
 let getOutPath (inRootPath:string) (outRootPath:string) (path:string) =
+    //Lowercase directory names.  Leave filename casing alone (allows user to define and stops breaking images on Unix).
     let docRootRelativePath = 
         path.Substring(inRootPath.Length+1(*Hack*)) 
         |> numberWang 
         |> (fun path -> if hasPandocableExtension path then Path.ChangeExtension(path, "html") else path)
     let fullPath = 
-        Path.Combine(outRootPath.ToLower(), docRootRelativePath)
-    (fullPath.ToLower(), docRootRelativePath.ToLower())
+        Path.Combine(outRootPath, docRootRelativePath)
+    (fullPath, docRootRelativePath)
 
 let validFile (filePath:string) = 
     not (filePath.EndsWith("~") || filePath.EndsWith(".swp"))

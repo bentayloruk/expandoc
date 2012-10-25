@@ -21,14 +21,14 @@ let fileSystemServer path (port:int) =
             else path + requestPath
             
         let mimeType = 
-            let fileExtension = Path.GetExtension(path).Substring(1)
-            mimeTypeForFileExtension fileExtension
+            let fileExtension = Path.GetExtension(path).Replace(".", "")
+            fileExtension, mimeTypeForFileExtension fileExtension
 
         //Create the response
         let response = 
             if File.Exists(path) then
                 match mimeType with
-                | Some(mt) -> 
+                | _, Some(mt) -> 
                     match isBinaryMimeType mt with
                     | false -> 
                         use sr = new StreamReader(path)
@@ -37,7 +37,8 @@ let fileSystemServer path (port:int) =
                         use br = new BinaryReader(File.Open(path, FileMode.Open))
                         let fileInfo = FileInfo(path)
                         (200, None, Some(br.ReadBytes(int fileInfo.Length)), mt)
-                | None -> failwith "File extension not mapped to MIME type."
+                //| extension, None -> failwith "File extension %s not mapped to MIME type." extension
+                | extension, None -> (404, None, None, "") 
             else (404, None, None, "") 
         
         //Serve the response
@@ -55,7 +56,7 @@ let fileSystemServer path (port:int) =
         (*|(404, body)*)
         | (404, _,_,_) -> 
             printfn "404 for %s." path
-            let response = Response(resultDelegate, ContentType = "")
+            let response = Response(resultDelegate, "404", ContentType = "")
             response.Write("Not found") |> ignore
             response.End()
         | (resCode, _,_,_) -> failwith "Unhandled response code %i." resCode
